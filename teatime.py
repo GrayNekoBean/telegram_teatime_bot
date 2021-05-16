@@ -1,5 +1,5 @@
 import os
-from pathlib import Path
+import time
 import logging
 import datetime
 import threading
@@ -23,7 +23,7 @@ def add_chatID(chat_id: int):
     if not chat_id in chatIDs:
         chatIDs.append(chat_id)
         chatID_file = open('Chat_IDs.txt', 'a+')
-        chatID_file.write('\n' + str(chat_id))
+        chatID_file.write(str(chat_id))
         chatID_file.close()
 
 teatime_video_path = 'video/teatime.mp4'
@@ -58,7 +58,7 @@ def teatime_alarm(chatID: int, video_file):
             else:
                 print("Error: send video failed.")
         else:
-            tg_dispatcher.bot.send_video(chat_id=chatID, video=teatime_video)           
+            tg_dispatcher.bot.send_video(chat_id=chatID, video=teatime_video)
     except TelegramError as err:
         print(err.message)
         
@@ -89,8 +89,9 @@ def cmd_loop():
             cmd = input("teatime_bot> ")
             cmd = cmd.split(' ')
             if len(cmd) == 1:
-                if cmd == 'stop':
+                if cmd[0] == 'stop':
                     STOP = True
+                    print('Stopping bot...')
                     break
             elif len(cmd) == 3:
                 if (cmd[0] == 'set'):
@@ -108,13 +109,14 @@ def cmd_loop():
             print('\nInvalid Input.')
             print('\n' + err)
             continue
-
+        time.sleep(0.1)
 
 def main_loop():
     global STOP
     global tg_updater
     while not STOP:
         loop()
+        time.sleep(0.3)
     tg_updater.stop()
 
 def init():
