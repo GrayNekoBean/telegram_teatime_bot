@@ -21,6 +21,7 @@ Your are free to modify this code and deploy it on your own bot. But if you got 
 Make sure you got a text file named TOKEN which is used to store your bot token. Then just run teatime.py.
 
 <pre>
+pip3 install -r requirements.txt
 python3 teatime.py
 </pre>
 
