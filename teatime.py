@@ -1,3 +1,12 @@
+'''
+By @GrayNekoBean
+
+Telegram bot: https://t.me/threeOclock_teatime_bot
+Add this to your groups to notice everyone for the Teatime!
+
+Feel free to modify and deploy this code on your own bot.
+'''
+
 import os
 import time
 import logging
