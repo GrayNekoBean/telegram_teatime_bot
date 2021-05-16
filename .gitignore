@@ -6,7 +6,6 @@ __pycache__/
 .vscode
 
 TOKEN
-Chat_IDs
 
 # C extensions
 *.so
