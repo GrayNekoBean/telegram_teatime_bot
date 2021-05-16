@@ -1,5 +1,7 @@
 # Telegram Teatime bot
 
+***注意：目前该bot时区位于英国，很快将会加入设置时区的功能。***
+
 *提醒你的 tg 群友三点准时**饮茶** !*
 
 Telegram bot: https://t.me/threeOclock_teatime_bot   
