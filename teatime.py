@@ -23,7 +23,7 @@ def add_chatID(chat_id: int):
     if not chat_id in chatIDs:
         chatIDs.append(chat_id)
         chatID_file = open('Chat_IDs.txt', 'a+')
-        chatID_file.write(str(chat_id) + '\n')
+        chatID_file.write('\n' + str(chat_id))
         chatID_file.close()
 
 teatime_video_path = 'video/teatime.mp4'
