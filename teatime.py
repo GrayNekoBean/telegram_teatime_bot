@@ -39,6 +39,9 @@ STOP = False
 
 teatime_noticed = False
 
+TEA_HOUR=15
+TEA_MINUTE=15
+
 def start(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="我是群飲茶小助手，希望大家每天三點看到消息可以立刻停止做工，開始**飲茶**")
     add_chatID(update.effective_chat.id)
@@ -62,26 +65,50 @@ def teatime_alarm(chatID: int, video_file):
 def loop():
     global teatime_noticed
     global chatIDs
+    global TEA_HOUR
+    global TEA_MINUTE
     now = datetime.datetime.now()
     if not teatime_noticed:
-        if now.hour == 15 and now.minute == 15:
+        if now.hour == TEA_HOUR and now.minute == TEA_MINUTE:
             teatime_video_file = open(teatime_video_path, 'rb')
             for id in chatIDs:
                 teatime_alarm(id, teatime_video_file)
             teatime_video_file.close()
             teatime_noticed = True
     else:
-        if now.hour == 15 and now.minute == 16:
+        if now.hour == TEA_HOUR and now.minute == TEA_MINUTE+1:
             teatime_noticed = False
     pass
 
 def cmd_loop():
     global STOP
+    global TEA_HOUR
+    global TEA_MINUTE
     while True:
-        cmd = input("teatime_bot> ")
-        if cmd == 'stop':
-            STOP = True
-            break
+        try:
+            cmd = input("teatime_bot> ")
+            cmd = cmd.split(' ')
+            if len(cmd) == 1:
+                if cmd == 'stop':
+                    STOP = True
+                    break
+            elif len(cmd) == 3:
+                if (cmd[0] == 'set'):
+                    if cmd[1] == 'TEATIME':
+                        inputTime = cmd[2].split(':')
+                        h = int(inputTime[0])
+                        m = int(inputTime[1])
+                        if 0 <= h <= 23 and 0 <= m <= 59:
+                            TEA_HOUR = h
+                            TEA_MINUTE = m
+                            print('Teatime setted to: ' + cmd[2])
+                        else:
+                            print('Invalid time.')
+        except IndexError as err:
+            print('\nInvalid Input.')
+            print('\n' + err)
+            continue
+
 
 def main_loop():
     global STOP
