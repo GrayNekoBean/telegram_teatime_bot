@@ -1,13 +1,14 @@
 # Telegram Teatime bot
 
-***注意：目前该bot时区位于英国，很快将会加入设置时区的功能。***
-
 *提醒你的 tg 群友三点准时**饮茶** !*
 
 Telegram bot: https://t.me/threeOclock_teatime_bot   
 
 加群后在群内使用"/start"命令来初始化bot.   
-use /start command in the telegram group to initiate bot.
+use "/start" command in the telegram group to initiate bot.
+
+通过使用"/settimezone"命令来设置你的时区.
+use "/settimezone" command to set the timezone for you.
 
 # Deploy on your own bot(server)
 你可以自行修改这段代码并把它应用到自己的bot上, 但是如果你有更好的主意改进这个bot并且愿意提交*pull request*的话我会很感激的.
