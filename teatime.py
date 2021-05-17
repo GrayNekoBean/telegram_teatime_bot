@@ -12,11 +12,14 @@ import time
 import json
 import logging
 import datetime
+import pytz
 import threading
 
-from telegram import Update, Video
+from telegram import Update, Video, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.error import TelegramError
-from telegram.ext import Updater, Dispatcher, CallbackContext, CommandHandler
+from telegram.ext import Updater, Dispatcher, CallbackContext, CommandHandler, ConversationHandler, dispatcher
+from telegram.ext.filters import Filters
+from telegram.ext.messagehandler import MessageHandler
 
 token_file = open('TOKEN', 'r')
 TOKEN = token_file.read().strip()
@@ -26,22 +29,67 @@ if os.path.exists('Chat_IDs.txt'):
     chatID_file = open('Chat_IDs.txt', 'r')
 else:
     chatID_file = open('Chat_IDs.txt', 'w+')
-chatIDs = [int(cid) for cid in chatID_file.readlines()]
+
+chatIDs = {}
+timezones = []
+for line in chatID_file.readlines():
+    if line == '' or line == '\n':
+        continue
+    dat = line.strip().split(',')
+    cid = int(dat[0])
+    tz = int(dat[1])
+    chatIDs[cid] = tz
+    if not tz in timezones:
+        timezones.append(tz)
 chatID_file.close()
 
-def add_chatID(chat_id: int):
+def serialize_chatIDs() -> str:
+    global chatIDs
+    dat = ''
+    for id in chatIDs:
+        tz = chatIDs[id]
+        dat += f'{id},{tz}\n'
+    return dat
+
+def add_chatID(chat_id: int, tz: int = 8):
+    global chatIDs
+    global timezones
     if not chat_id in chatIDs:
-        chatIDs.append(chat_id)
+        chatIDs[chat_id] = tz
+        if not tz in timezones:
+            timezones.append(tz)
         chatID_file = open('Chat_IDs.txt', 'a+')
-        chatID_file.write(str(chat_id))
+        chatID_file.write(f'{chat_id},{tz}\n')
         chatID_file.close()
+    else:
+        print(f"The chat_id: {chat_id} to add already exists in the chatID list")
+
+def update_chatID_timezone(chat_id: int, tz: int):
+    global chatIDs
+    global timezones
+    if chat_id in chatIDs:
+        chatIDs[chat_id] = tz
+        if not tz in timezones:
+            timezones.append(tz)
+        chatID_file = open('Chat_IDs.txt', 'w')
+        chatID_file.write(serialize_chatIDs())
+        chatID_file.close()
+    else:
+        print(f"The chat_id: {chat_id} to update isn't exist in the chatID list")
+
+def addHour(a, b):
+    sum = a+b
+    if sum < 24:
+        return sum
+    else:
+        return sum - 24
+    
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                      level=logging.INFO)
 
 tg_updater: Updater = Updater(token=TOKEN, use_context=True)
 tg_dispatcher: Dispatcher = tg_updater.dispatcher
-
 
 teatime_video_path = 'video/teatime.mp4'
 teatime_video: Video = None
@@ -58,10 +106,40 @@ teatime_noticed = False
 TEA_HOUR=15
 TEA_MINUTE=15
 
+SETTING_TZ = 0
+
 def start(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="我是群飲茶小助手，希望大家每天三點看到消息可以立刻停止做工，開始**飲茶**")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="我是群饮茶小助手，希望大家每天三点看到消息可以立刻停止做工，开始**饮茶**")
     add_chatID(update.effective_chat.id)
     
+def set_timezone(update: Update, context: CallbackContext) -> int:
+    reply_keys = [[
+        '+8:00(中国广东时间)',
+        '+9:00(日本/韩国时间)',
+        '+7:00(越南/泰国等东南亚时间)',
+        '-4:00(美国/加拿大东部夏令时)',
+        '+1:00(英国夏令时)',
+        '/cancel'
+    ]]
+    update.message.reply_text(
+        '选择您所在的时区(基于UTC)以更准确地提醒您**饮茶**。\n默认时区为广东时间(UTC+8:00), 如果常用选项中没有你所在的时区可按(+/-)hh:00的格式手动回复',
+        reply_markup=ReplyKeyboardMarkup(reply_keys, one_time_keyboard=True)
+    )
+    return SETTING_TZ
+    
+def set_timezone_done(update: Update, context: CallbackContext) -> int:
+    tz = update.message.text.split(':')[0]
+    update_chatID_timezone(update.effective_chat.id, int(tz))
+    update.message.reply_text(
+        '已将您的时区设置为UTC' + update.message.text + ', 今天的工就做到这里了',
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return ConversationHandler.END
+
+def cancel_set_timezone(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text('太棒了，我直接停止做工！请继续保持每日饮茶！', reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
 def teatime_alarm(chatID: int, video_file):
     global tg_dispatcher
     global teatime_video_path
@@ -84,18 +162,25 @@ def teatime_alarm(chatID: int, video_file):
 def loop():
     global teatime_noticed
     global chatIDs
+    global timezones
     global TEA_HOUR
     global TEA_MINUTE
-    now = datetime.datetime.now()
-    if not teatime_noticed:
-        if now.hour == TEA_HOUR and now.minute == TEA_MINUTE:
-            teatime_video_file = open(teatime_video_path, 'rb')
-            for id in chatIDs:
-                teatime_alarm(id, teatime_video_file)
-            teatime_video_file.close()
-            teatime_noticed = True
+    now = datetime.datetime.now(datetime.timezone.utc)
+    for tz in timezones:
+        if addHour(now.hour, tz) == TEA_HOUR:
+           break
     else:
-        if now.hour == TEA_HOUR and now.minute == TEA_MINUTE+1:
+        return 
+    if not teatime_noticed:
+        teatime_video_file = open(teatime_video_path, 'rb')
+        for id in chatIDs:
+            localized_hour = addHour(now.hour, chatIDs[id])
+            if localized_hour == TEA_HOUR and now.minute == TEA_MINUTE:
+                teatime_alarm(id, teatime_video_file)
+        teatime_noticed = True
+        teatime_video_file.close()
+    else:
+        if now.minute == TEA_MINUTE+1:
             teatime_noticed = False
     pass
 
@@ -147,10 +232,21 @@ def init():
     
     cmd_thread = threading.Thread(target=cmd_loop)
     cmd_thread.start()
-
+    
     start_handler = CommandHandler('start', start)
     tg_dispatcher.add_handler(start_handler)
+
+    set_timezone_handler = ConversationHandler(
+        entry_points=[CommandHandler('settimezone', set_timezone)],
+        states={
+            SETTING_TZ: [MessageHandler(Filters.regex('^[+-][0-9]{1,2}:00.*'), set_timezone_done)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel_set_timezone)]
+    )
+    tg_dispatcher.add_handler(set_timezone_handler)
     tg_updater.start_polling()
+    tg_updater.idle()
     pass
 
-init()
+if __name__ == '__main__':
+    init()
