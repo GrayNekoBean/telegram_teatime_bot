@@ -9,6 +9,7 @@ Feel free to modify and deploy this code on your own bot.
 
 import os
 import time
+import json
 import logging
 import datetime
 import threading
@@ -35,14 +36,20 @@ def add_chatID(chat_id: int):
         chatID_file.write(str(chat_id))
         chatID_file.close()
 
-teatime_video_path = 'video/teatime.mp4'
-teatime_video: Video = None
-
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                      level=logging.INFO)
 
 tg_updater: Updater = Updater(token=TOKEN, use_context=True)
 tg_dispatcher: Dispatcher = tg_updater.dispatcher
+
+
+teatime_video_path = 'video/teatime.mp4'
+teatime_video: Video = None
+
+if os.path.exists('teatime_video_obj.json'):
+    teatime_video_obj = open('teatime_video_obj.json', 'r')
+    teatime_video = Video.de_json(json.load(teatime_video_obj), tg_dispatcher.bot)
+    teatime_video_obj.close()
 
 STOP = False
 
@@ -64,6 +71,9 @@ def teatime_alarm(chatID: int, video_file):
             msg = tg_dispatcher.bot.send_video(chat_id=chatID, video=video_file, timeout=1000)
             if msg != None:
                 teatime_video = msg.video
+                video_obj = open('teatime_video_obj.json', 'w')
+                video_obj.write(teatime_video.to_json())
+                video_obj.close()
             else:
                 print("Error: send video failed.")
         else:
@@ -137,7 +147,7 @@ def init():
     
     cmd_thread = threading.Thread(target=cmd_loop)
     cmd_thread.start()
-    
+
     start_handler = CommandHandler('start', start)
     tg_dispatcher.add_handler(start_handler)
     tg_updater.start_polling()
