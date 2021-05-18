@@ -10,6 +10,9 @@ use "/start" command in the telegram group to initiate bot.
 通过使用"/settimezone"命令来设置你的时区.
 use "/settimezone" command to set the timezone for you.
 
+通过使用"/help"命令来显示帮助.
+use "/settimezone" command to show the help.
+
 # Deploy on your own bot(server)
 你可以自行修改这段代码并把它应用到自己的bot上, 但是如果你有更好的主意改进这个bot并且愿意提交*pull request*的话我会很感激的.
 

@@ -110,8 +110,14 @@ SETTING_TZ = 0
 SETTING_TZ_RETRY = 1
 
 def start(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="我是群饮茶小助手，希望大家每天三点看到消息可以立刻停止做工，开始**饮茶**")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="我是群饮茶小助手，希望大家每天三点看到消息可以立刻停止做工，开始**饮茶**\n输入 /help 查看帮助")
     add_chatID(update.effective_chat.id)
+
+def printHelp(update: Update, context: CallbackContext):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='我是@GrayNekoBean编写的饮茶提醒bot. \n使用 /start 命令来初始化，\n使用 /help 命令来显示该帮助信息，\n使用 /settimezone 命令来设置时区。\n项目地址: https://github.com/bioBean/telegram_teatime_bot'
+    )
     
 def RedTeaOnly(update: Update, context: CallbackContext):
     if random.randint(114, 514) < 314:
@@ -236,6 +242,7 @@ def cmd_loop():
             print('\n' + err)
             continue
         time.sleep(0.1)
+    
 
 def main_loop():
     global STOP
@@ -259,6 +266,9 @@ def init():
     start_handler = CommandHandler('start', start)
     tg_dispatcher.add_handler(start_handler)
 
+    help_handler = CommandHandler('help', printHelp)
+    tg_dispatcher.add_handler(help_handler)
+
     inm_handler = CommandHandler('114514', RedTeaOnly)
     tg_dispatcher.add_handler(inm_handler)
 
@@ -272,7 +282,7 @@ def init():
     )
     tg_dispatcher.add_handler(set_timezone_handler)
     tg_updater.start_polling()
-    tg_updater.idle()
+    #tg_updater.idle()
     pass
 
 if __name__ == '__main__':
