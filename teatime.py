@@ -9,10 +9,10 @@ Feel free to modify and deploy this code on your own bot.
 
 import os
 import time
+import random
 import json
 import logging
 import datetime
-import pytz
 import threading
 
 from telegram import Update, Video, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -107,16 +107,25 @@ TEA_HOUR=15
 TEA_MINUTE=15
 
 SETTING_TZ = 0
+SETTING_TZ_RETRY = 1
 
 def start(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="我是群饮茶小助手，希望大家每天三点看到消息可以立刻停止做工，开始**饮茶**")
     add_chatID(update.effective_chat.id)
     
+def RedTeaOnly(update: Update, context: CallbackContext):
+    if random.randint(114, 514) < 314:
+        context.bot.send_message(chat_id=update.effective_chat.id, text="アイスティーしかなかったけどいいかな？")
+    else:
+        context.bot.send_message(chat_id=update.effective_chat.id, text="只有冰红茶可以吗？")
+
 def set_timezone(update: Update, context: CallbackContext) -> int:
     reply_keys = [[
         '+8:00(中国广东时间)',
         '+9:00(日本/韩国时间)',
         '+7:00(越南/泰国等东南亚时间)',
+    ],
+    [
         '-4:00(美国/加拿大东部夏令时)',
         '+1:00(英国夏令时)',
         '/cancel'
@@ -128,13 +137,26 @@ def set_timezone(update: Update, context: CallbackContext) -> int:
     return SETTING_TZ
     
 def set_timezone_done(update: Update, context: CallbackContext) -> int:
-    tz = update.message.text.split(':')[0]
-    update_chatID_timezone(update.effective_chat.id, int(tz))
+    tz_ = update.message.text.split(':')[0]
+    tz = int(tz_)
+    if tz < -12 or tz > 12:
+        reply_keys = [['重新输入', '/cancel']]
+        update.message.reply_text('时差太大嘞！', reply_markup=ReplyKeyboardMarkup(reply_keys, one_time_keyboard=True))
+        return SETTING_TZ_RETRY
+    update_chatID_timezone(update.effective_chat.id, tz)
     update.message.reply_text(
-        '已将您的时区设置为UTC' + update.message.text + ', 今天的工就做到这里了',
+        '已将您的时区设置为UTC' + tz_ + ':00, 今天的工就做到这里了',
         reply_markup=ReplyKeyboardRemove()
     )
     return ConversationHandler.END
+
+def set_timezone_wrong_format(update: Update, context: CallbackContext) -> int:
+    reply_keys = [['重新输入', '/cancel']]
+    update.message.reply_text(
+        '请按照+/-hh:00的格式输入时差，该时差是与UTC/GMT标准时间的时差，例如设为国内时间则输入为“+8:00”，注意+或-号是必须的',
+        reply_markup=ReplyKeyboardMarkup(reply_keys, one_time_keyboard=True)
+    )
+    return SETTING_TZ_RETRY
 
 def cancel_set_timezone(update: Update, context: CallbackContext) -> int:
     update.message.reply_text('太棒了，我直接停止做工！请继续保持每日饮茶！', reply_markup=ReplyKeyboardRemove())
@@ -222,6 +244,7 @@ def main_loop():
         loop()
         time.sleep(0.3)
     tg_updater.stop()
+    exit()
 
 def init():
     global tg_updater
@@ -236,10 +259,14 @@ def init():
     start_handler = CommandHandler('start', start)
     tg_dispatcher.add_handler(start_handler)
 
+    inm_handler = CommandHandler('114514', RedTeaOnly)
+    tg_dispatcher.add_handler(inm_handler)
+
     set_timezone_handler = ConversationHandler(
         entry_points=[CommandHandler('settimezone', set_timezone)],
         states={
-            SETTING_TZ: [MessageHandler(Filters.regex('^[+-][0-9]{1,2}:00.*'), set_timezone_done)]
+            SETTING_TZ: [MessageHandler(Filters.regex('^[+-][0-9]{1,2}:00.*'), set_timezone_done), MessageHandler(~Filters.command, set_timezone_wrong_format)],
+            SETTING_TZ_RETRY: [MessageHandler(~Filters.command, set_timezone)]
         },
         fallbacks=[CommandHandler('cancel', cancel_set_timezone)]
     )
