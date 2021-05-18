@@ -126,6 +126,13 @@ def RedTeaOnly(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=update.effective_chat.id, text="只有冰红茶可以吗？")
 
 def set_timezone(update: Update, context: CallbackContext) -> int:
+    global chatIDs
+    if update.effective_chat.id not in chatIDs:
+        update.message.reply_text('你需要先通过 \start 命令来初始化')
+        return ConversationHandler.END
+    
+    current_tz = chatIDs[update.effective_chat.id]
+    current_tz_str = ('+' if current_tz >= 0 else '') + str(current_tz) + ':00'
     reply_keys = [[
         '+8:00(中国广东时间)',
         '+9:00(日本/韩国时间)',
@@ -137,7 +144,7 @@ def set_timezone(update: Update, context: CallbackContext) -> int:
         '/cancel'
     ]]
     update.message.reply_text(
-        '选择您所在的时区(基于UTC)以更准确地提醒您**饮茶**。\n默认时区为广东时间(UTC+8:00), 如果常用选项中没有你所在的时区可按(+/-)hh:00的格式手动回复',
+        '选择您所在的时区(基于UTC)以更准确地提醒您**饮茶**。\n当前时区为UTC' + current_tz_str + ', 默认时区为广东时间(UTC+8:00), 如果常用选项中没有你所在的时区可按(+/-)hh:00的格式手动回复',
         reply_markup=ReplyKeyboardMarkup(reply_keys, one_time_keyboard=True)
     )
     return SETTING_TZ
@@ -242,7 +249,7 @@ def cmd_loop():
             print('\n' + err)
             continue
         time.sleep(0.1)
-    
+
 
 def main_loop():
     global STOP
