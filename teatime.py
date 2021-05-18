@@ -212,7 +212,7 @@ def loop():
             localized_hour = addHour(now.hour, chatIDs[id])
             if localized_hour == TEA_HOUR and now.minute == TEA_MINUTE:
                 teatime_alarm(id, teatime_video_file)
-        teatime_noticed = True
+                teatime_noticed = True
         teatime_video_file.close()
     else:
         if now.minute == TEA_MINUTE+1:
