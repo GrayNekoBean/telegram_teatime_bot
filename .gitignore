@@ -7,6 +7,7 @@ __pycache__/
 
 TOKEN
 Chat_IDs.txt
+Chat_IDs_test.txt
 teatime_video_obj.json
 
 # C extensions

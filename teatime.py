@@ -25,10 +25,12 @@ token_file = open('TOKEN', 'r')
 TOKEN = token_file.read().strip()
 token_file.close()
 
-if os.path.exists('Chat_IDs.txt'):
-    chatID_file = open('Chat_IDs.txt', 'r')
+chat_id_file_path = 'Chat_IDs.txt'
+
+if os.path.exists(chat_id_file_path):
+    chatID_file = open(chat_id_file_path, 'r')
 else:
-    chatID_file = open('Chat_IDs.txt', 'w+')
+    chatID_file = open(chat_id_file_path, 'w+')
 
 chatIDs = {}
 timezones = []
@@ -58,7 +60,7 @@ def add_chatID(chat_id: int, tz: int = 8):
         chatIDs[chat_id] = tz
         if not tz in timezones:
             timezones.append(tz)
-        chatID_file = open('Chat_IDs.txt', 'a+')
+        chatID_file = open(chat_id_file_path, 'a+')
         chatID_file.write(f'{chat_id},{tz}\n')
         chatID_file.close()
     else:
@@ -71,7 +73,7 @@ def update_chatID_timezone(chat_id: int, tz: int):
         chatIDs[chat_id] = tz
         if not tz in timezones:
             timezones.append(tz)
-        chatID_file = open('Chat_IDs.txt', 'w')
+        chatID_file = open(chat_id_file_path, 'w')
         chatID_file.write(serialize_chatIDs())
         chatID_file.close()
     else:
@@ -175,13 +177,15 @@ def cancel_set_timezone(update: Update, context: CallbackContext) -> int:
     update.message.reply_text('太棒了，我直接停止做工！请继续保持每日饮茶！', reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
-def teatime_alarm(chatID: int, video_file):
+def teatime_alarm(chatID: int):
     global tg_dispatcher
     global teatime_video_path
     global teatime_video
     try:
         if teatime_video == None:
-            msg = tg_dispatcher.bot.send_video(chat_id=chatID, video=video_file, timeout=1000)
+            teatime_video_file = open(teatime_video_path, 'rb') 
+            msg = tg_dispatcher.bot.send_video(chat_id=chatID, video=teatime_video_file, timeout=1000)
+            teatime_video_file.close()
             if msg != None:
                 teatime_video = msg.video
                 video_obj = open('teatime_video_obj.json', 'w')
@@ -189,11 +193,14 @@ def teatime_alarm(chatID: int, video_file):
                 video_obj.close()
             else:
                 print("Error: send video failed.")
+                return False
         else:
             tg_dispatcher.bot.send_video(chat_id=chatID, video=teatime_video)
+        return True
     except TelegramError as err:
         print(err.message)
-        
+        return False
+
 def loop():
     global teatime_noticed
     global chatIDs
@@ -202,18 +209,25 @@ def loop():
     global TEA_MINUTE
     now = datetime.datetime.now(datetime.timezone.utc)
     for tz in timezones:
-        if addHour(now.hour, tz) == TEA_HOUR:
+        if addHour(now.hour, tz) == TEA_HOUR and (now.minute == TEA_MINUTE or now.minute == TEA_MINUTE + 1):
            break
     else:
         return 
     if not teatime_noticed:
-        teatime_video_file = open(teatime_video_path, 'rb')
+        noticed_count = 0
+        success_count= 0
+        failed_count = 0
         for id in chatIDs:
             localized_hour = addHour(now.hour, chatIDs[id])
             if localized_hour == TEA_HOUR and now.minute == TEA_MINUTE:
-                teatime_alarm(id, teatime_video_file)
+                noticed_count += 1
+                if teatime_alarm(id):
+                    success_count += 1
+                else:
+                    failed_count += 1
                 teatime_noticed = True
-        teatime_video_file.close()
+        if noticed_count > 0:
+            print(f'The bot just noticed {noticed_count} telegram users for the teatime, with {success_count} successed and {failed_count} failed.')
     else:
         if now.minute == TEA_MINUTE+1:
             teatime_noticed = False
@@ -233,8 +247,8 @@ def cmd_loop():
                     print('Stopping bot...')
                     break
             elif len(cmd) == 3:
-                if (cmd[0] == 'set'):
-                    if cmd[1] == 'TEATIME':
+                if (cmd[0].lower() == 'set'):
+                    if cmd[1].upper() == 'TEATIME':
                         inputTime = cmd[2].split(':')
                         h = int(inputTime[0])
                         m = int(inputTime[1])
@@ -244,6 +258,13 @@ def cmd_loop():
                             print('Teatime setted to: ' + cmd[2])
                         else:
                             print('Invalid time.')
+            elif len(cmd) == 2:
+                if cmd[0].lower() == 'get':
+                    if cmd[1].upper() == 'USER_COUNT':
+                        all_users = chatIDs.keys()
+                        personals = list(filter(lambda id: id > 0, all_users))
+                        print('Current numberumber of user: ' + str(len(all_users)))
+                        print(f'include {len(personals)} of personal users, and {len(all_users) - len(personals)} of groups.')
         except IndexError as err:
             print('\nInvalid Input.')
             print('\n' + err)
