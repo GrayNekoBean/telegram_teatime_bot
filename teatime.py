@@ -7,6 +7,7 @@ Add this to your groups to notice everyone for the Teatime!
 Feel free to modify and deploy this code on your own bot.
 '''
 
+from operator import truediv
 import os
 import time
 import random
@@ -17,22 +18,38 @@ import threading
 
 from telegram import Update, Video, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.error import TelegramError
-from telegram.ext import Updater, Dispatcher, CallbackContext, CommandHandler, ConversationHandler, dispatcher
+from telegram.ext import Updater, Dispatcher, CallbackContext, CommandHandler, ConversationHandler
 from telegram.ext.filters import Filters
 from telegram.ext.messagehandler import MessageHandler
+
+
+# logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+#                      level=logging.INFO)
+
+logging.basicConfig(
+     format='%(asctime)s %(levelname)-8s %(message)s',
+     level=logging.INFO,
+     datefmt='%Y-%m-%d %H:%M:%S')
 
 token_file = open('TOKEN', 'r')
 TOKEN = token_file.read().strip()
 token_file.close()
 
 chat_id_file_path = 'Chat_IDs.txt'
+stopped_id_file_path = 'stopped_IDs.txt'
 
 if os.path.exists(chat_id_file_path):
     chatID_file = open(chat_id_file_path, 'r')
 else:
     chatID_file = open(chat_id_file_path, 'w+')
 
+if os.path.exists(stopped_id_file_path):
+    stoppedID_file = open(stopped_id_file_path, 'r')
+else:
+    stoppedID_file = open(stopped_id_file_path, 'w+')
+
 chatIDs = {}
+stoppedIDs = []
 timezones = []
 for line in chatID_file.readlines():
     if line == '' or line == '\n':
@@ -40,10 +57,19 @@ for line in chatID_file.readlines():
     dat = line.strip().split(',')
     cid = int(dat[0])
     tz = int(dat[1])
+
     chatIDs[cid] = tz
     if not tz in timezones:
         timezones.append(tz)
 chatID_file.close()
+
+for line in stoppedID_file.readlines():
+    if line == '' or line == '\n':
+        continue
+    cid = int(line)
+    stoppedIDs.append(cid)
+stoppedID_file.close()
+
 
 def serialize_chatIDs() -> str:
     global chatIDs
@@ -51,6 +77,12 @@ def serialize_chatIDs() -> str:
     for id in chatIDs:
         tz = chatIDs[id]
         dat += f'{id},{tz}\n'
+    return dat
+
+def serialize_stopIDs() -> str:
+    dat = ''
+    for id in stoppedIDs:
+        dat += f'{id}\n'
     return dat
 
 def add_chatID(chat_id: int, tz: int = 8):
@@ -64,7 +96,31 @@ def add_chatID(chat_id: int, tz: int = 8):
         chatID_file.write(f'{chat_id},{tz}\n')
         chatID_file.close()
     else:
-        print(f"The chat_id: {chat_id} to add already exists in the chatID list")
+        logging.warning(f"The chat_id: {chat_id} to add already exists in the chatID list")
+
+def add_stoppedID(chat_id: int):
+    global stoppedIDs
+    if not chat_id in stoppedIDs:
+        stoppedIDs.append(chat_id)
+        stoppedID_file = open(stopped_id_file_path, 'a+')
+        stoppedID_file.write(f'{chat_id}\n')
+        stoppedID_file.close()
+        return True
+    else:
+        logging.warning(f"The chat_id: {chat_id} to add already exists in the stoppedID list")
+        return False
+
+def remove_stoppedID(chat_id: int):
+    global stoppedIDs
+    if chat_id in stoppedIDs:
+        stoppedIDs.remove(chat_id)
+        stoppedID_file = open(stopped_id_file_path, 'w')
+        stoppedID_file.write(serialize_stopIDs())
+        stoppedID_file.close()
+        return True
+    else:
+        logging.warning(f"The chat_id: {chat_id} to remove not exists in the stoppedID list")
+        return False
 
 def update_chatID_timezone(chat_id: int, tz: int):
     global chatIDs
@@ -77,7 +133,7 @@ def update_chatID_timezone(chat_id: int, tz: int):
         chatID_file.write(serialize_chatIDs())
         chatID_file.close()
     else:
-        print(f"The chat_id: {chat_id} to update isn't exist in the chatID list")
+        logging.warning(f"The chat_id: {chat_id} to update isn't exist in the chatID list")
 
 def addHour(a, b):
     sum = a+b
@@ -85,10 +141,6 @@ def addHour(a, b):
         return sum
     else:
         return sum - 24
-    
-
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                     level=logging.INFO)
 
 tg_updater: Updater = Updater(token=TOKEN, use_context=True)
 tg_dispatcher: Dispatcher = tg_updater.dispatcher
@@ -118,7 +170,7 @@ def start(update: Update, context: CallbackContext):
 def printHelp(update: Update, context: CallbackContext):
     context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text='我是@GrayNekoBean编写的饮茶提醒bot. \n使用 /start 命令来初始化，\n使用 /help 命令来显示该帮助信息，\n使用 /settimezone 命令来设置时区。\n项目地址: https://github.com/bioBean/telegram_teatime_bot'
+        text='我是@GrayNekoBean编写的饮茶提醒bot. \n使用 /start 命令来初始化，\n使用 /help 命令来显示该帮助信息，\n使用 /settimezone 命令来设置时区。\n使用 /stop 来暂停饮茶提醒并使用 /resume 来恢复饮茶提醒。\n----------------\n16.Nov.21更新内容：添加了暂停bot的功能\n项目地址: https://github.com/GrayNekoBean/telegram_teatime_bot'
     )
     
 def RedTeaOnly(update: Update, context: CallbackContext):
@@ -126,6 +178,22 @@ def RedTeaOnly(update: Update, context: CallbackContext):
         context.bot.send_message(chat_id=update.effective_chat.id, text="アイスティーしかなかったけどいいかな？")
     else:
         context.bot.send_message(chat_id=update.effective_chat.id, text="只有冰红茶可以吗？")
+
+def stopNotice(update: Update, context: CallbackContext):
+    global stoppedIDs
+    cid = update.effective_chat.id
+    if add_stoppedID(cid):
+        context.bot.send_message(chat_id=cid, text="已停止提醒饮茶，自己也不要忘了每天饮茶哦")
+    else:
+        context.bot.send_message(chat_id=cid, text="饮茶提醒已处于停止状态")
+
+def resumeNotice(update: Update, context: CallbackContext):
+    global stoppedIDs
+    cid = update.effective_chat.id
+    if remove_stoppedID(cid):
+        context.bot.send_message(chat_id=cid, text="已恢复提醒饮茶，接下来我将继续每天提醒pong友们准时饮茶")
+    else:
+        context.bot.send_message(chat_id=cid, text="饮茶提醒已处于开启状态")
 
 def set_timezone(update: Update, context: CallbackContext) -> int:
     global chatIDs
@@ -192,7 +260,7 @@ def teatime_alarm(chatID: int):
                 video_obj.write(teatime_video.to_json())
                 video_obj.close()
             else:
-                print("Error: send video failed.")
+                logging.error("Error: send video failed.")
                 return False
         else:
             tg_dispatcher.bot.send_video(chat_id=chatID, video=teatime_video)
@@ -208,8 +276,9 @@ def loop():
     global TEA_HOUR
     global TEA_MINUTE
     now = datetime.datetime.now(datetime.timezone.utc)
+    minute = now.minute
     for tz in timezones:
-        if addHour(now.hour, tz) == TEA_HOUR and (now.minute == TEA_MINUTE or now.minute == TEA_MINUTE + 1):
+        if addHour(now.hour, tz) == TEA_HOUR and (minute == TEA_MINUTE or minute == TEA_MINUTE + 1):
            break
     else:
         return 
@@ -219,15 +288,16 @@ def loop():
         failed_count = 0
         for id in chatIDs:
             localized_hour = addHour(now.hour, chatIDs[id])
-            if localized_hour == TEA_HOUR and now.minute == TEA_MINUTE:
+            if localized_hour == TEA_HOUR and minute == TEA_MINUTE:
                 noticed_count += 1
-                if teatime_alarm(id):
-                    success_count += 1
-                else:
-                    failed_count += 1
-                teatime_noticed = True
+                if not id in stoppedIDs:
+                    if teatime_alarm(id):
+                        success_count += 1
+                    else:
+                        failed_count += 1
+                    teatime_noticed = True
         if noticed_count > 0:
-            print(f'The bot just noticed {noticed_count} telegram users for the teatime, with {success_count} successed and {failed_count} failed.')
+            logging.info(f'The bot just noticed {noticed_count} telegram users for the teatime, with {success_count} successed and {failed_count} failed.')
     else:
         if now.minute == TEA_MINUTE+1:
             teatime_noticed = False
@@ -263,7 +333,7 @@ def cmd_loop():
                     if cmd[1].upper() == 'USER_COUNT':
                         all_users = chatIDs.keys()
                         personals = list(filter(lambda id: id > 0, all_users))
-                        print('Current numberumber of user: ' + str(len(all_users)))
+                        print('Current number of user: ' + str(len(all_users)))
                         print(f'include {len(personals)} of personal users, and {len(all_users) - len(personals)} of groups.')
         except IndexError as err:
             print('\nInvalid Input.')
@@ -296,6 +366,12 @@ def init():
 
     help_handler = CommandHandler('help', printHelp)
     tg_dispatcher.add_handler(help_handler)
+
+    stop_handler = CommandHandler('stop', stopNotice)
+    tg_dispatcher.add_handler(stop_handler)
+
+    resume_handler = CommandHandler('resume', resumeNotice)
+    tg_dispatcher.add_handler(resume_handler)
 
     inm_handler = CommandHandler('114514', RedTeaOnly)
     tg_dispatcher.add_handler(inm_handler)
